@@ -1,0 +1,31 @@
+---
+- name: Play for group1
+  hosts: group1
+  tasks:
+    - name: Print a message from group1
+      debug:
+        msg: "Hallo von: group1"
+
+- name: Play for group2
+  hosts: group2
+  tasks:
+    - name: Print a message from group2
+      debug:
+        msg: "Hallo von: group2"
+
+- name: Play for group3
+  hosts: group3
+  tasks:
+    - name: Print a message from group3
+      debug:
+        msg: "Hallo von: group3"
+
+- name: Play for supergroup - Print IP Addresses
+  hosts: supergroup
+  tasks:
+    - name: Print the IP address of the host
+      command: hostname -I
+      register: ip_address
+    - name: Display IP address
+      debug:
+        var: ip_address.stdout
