@@ -94,7 +94,6 @@ jobs:
           echo "::set-output name=ip_httpd::$(terraform output -raw httpd_instance_ip)"
         working-directory: ./terraform_setup/ec2
 
-  # Job para ejecutar Ansible (depende del job anterior)
   ansible-deploy:
     runs-on: ubuntu-latest
     needs: terraform-ec2
@@ -107,23 +106,18 @@ jobs:
           echo "${{ secrets.AWS_SSH_KEY }}" > private_key.pem
           chmod 600 private_key.pem
 
+      - name: Install Ansible
+        run: sudo apt-get update && sudo apt-get install -y ansible
+
       - name: Run Ansible Playbook for Nginx
-        uses: ansible/ansible-playbook-action@v2
-        with:
-          playbook: ansible_workflow/playbook.yml
-          inventory: |
-            [nginx]
-            ${{ steps.extract_ips.outputs.ip_nginx }} ansible_user=${{ secrets.SSH_USER }} ansible_ssh_private_key_file=private_key.pem
+        run: |
+          ansible-playbook ansible_workflow/playbook.yml -i "${{ steps.extract_ips.outputs.ip_nginx }}," -u ${{ secrets.SSH_USER }} --private-key private_key.pem --extra-vars "host=nginx"
         env:
           ANSIBLE_HOST_KEY_CHECKING: "False"
 
       - name: Run Ansible Playbook for Httpd
-        uses: ansible/ansible-playbook-action@v2
-        with:
-          playbook: ansible_workflow/playbook.yml
-          inventory: |
-            [httpd]
-            ${{ steps.extract_ips.outputs.ip_httpd }} ansible_user=${{ secrets.SSH_USER }} ansible_ssh_private_key_file=private_key.pem
+        run: |
+          ansible-playbook ansible_workflow/playbook.yml -i "${{ steps.extract_ips.outputs.ip_httpd }}," -u ${{ secrets.SSH_USER }} --private-key private_key.pem --extra-vars "host=httpd"
         env:
           ANSIBLE_HOST_KEY_CHECKING: "False"
 
