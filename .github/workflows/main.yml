@@ -88,8 +88,8 @@ jobs:
       - name: Extract IP addresses
         id: extract_ips
         run: |
-          echo "::set-output name=ip_nginx::$(terraform output -raw nginx_instance_ip)"
-          echo "::set-output name=ip_httpd::$(terraform output -raw httpd_instance_ip)"
+          echo "NGINX_IP=$(terraform output -raw nginx_instance_ip)" >> $GITHUB_ENV
+          echo "HTTPD_IP=$(terraform output -raw httpd_instance_ip)" >> $GITHUB_ENV
         working-directory: ./terraform_setup/ec2
 
   ansible-deploy:
@@ -109,13 +109,13 @@ jobs:
 
       - name: Run Ansible Playbook for Nginx
         run: |
-          ansible-playbook ansible_workflow/playbook.yml -i "${{ steps.extract_ips.outputs.ip_nginx }}," -u ${{ secrets.SSH_USER }} --private-key private_key.pem --extra-vars "host=nginx"
+          ansible-playbook ansible_workflow/playbook.yml -i "${{ env.NGINX_IP }}," -u ${{ secrets.SSH_USER }} --private-key private_key.pem --extra-vars "host=nginx"
         env:
           ANSIBLE_HOST_KEY_CHECKING: "False"
 
       - name: Run Ansible Playbook for Httpd
         run: |
-          ansible-playbook ansible_workflow/playbook.yml -i "${{ steps.extract_ips.outputs.ip_httpd }}," -u ${{ secrets.SSH_USER }} --private-key private_key.pem --extra-vars "host=httpd"
+          ansible-playbook ansible_workflow/playbook.yml -i "${{ env.HTTPD_IP }}," -u ${{ secrets.SSH_USER }} --private-key private_key.pem --extra-vars "host=httpd"
         env:
           ANSIBLE_HOST_KEY_CHECKING: "False"
 
