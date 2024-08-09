@@ -6,7 +6,6 @@ on:
       - main
 
 jobs:
-  # Job para desplegar la VPC
   terraform-vpc:
     runs-on: ubuntu-latest
     steps:
@@ -46,7 +45,6 @@ jobs:
         run: terraform apply -auto-approve
         working-directory: ./terraform_setup/vpc
 
-  # Job para desplegar las instancias EC2 (depende del job anterior)
   terraform-ec2:
     runs-on: ubuntu-latest
     needs: terraform-vpc
@@ -90,6 +88,8 @@ jobs:
       - name: Extract IP addresses
         id: extract_ips
         run: |
+          echo "Nginx IP: $(terraform output -raw nginx_instance_ip)"
+          echo "Httpd IP: $(terraform output -raw httpd_instance_ip)"
           echo "::set-output name=ip_nginx::$(terraform output -raw nginx_instance_ip)"
           echo "::set-output name=ip_httpd::$(terraform output -raw httpd_instance_ip)"
         working-directory: ./terraform_setup/ec2
@@ -109,14 +109,22 @@ jobs:
       - name: Install Ansible
         run: sudo apt-get update && sudo apt-get install -y ansible
 
+      - name: Debug Nginx IP
+        run: echo "Nginx IP: ${{ steps.extract_ips.outputs.ip_nginx }}"
+
+      - name: Debug Httpd IP
+        run: echo "Httpd IP: ${{ steps.extract_ips.outputs.ip_httpd }}"
+
       - name: Run Ansible Playbook for Nginx
         run: |
+          if [ -z "${{ steps.extract_ips.outputs.ip_nginx }}" ]; then echo "Nginx IP is not set"; exit 1; fi
           ansible-playbook ansible_workflow/playbook.yml -i "${{ steps.extract_ips.outputs.ip_nginx }}," -u ${{ secrets.SSH_USER }} --private-key private_key.pem --extra-vars "host=nginx"
         env:
           ANSIBLE_HOST_KEY_CHECKING: "False"
 
       - name: Run Ansible Playbook for Httpd
         run: |
+          if [ -z "${{ steps.extract_ips.outputs.ip_httpd }}" ]; then echo "Httpd IP is not set"; exit 1; fi
           ansible-playbook ansible_workflow/playbook.yml -i "${{ steps.extract_ips.outputs.ip_httpd }}," -u ${{ secrets.SSH_USER }} --private-key private_key.pem --extra-vars "host=httpd"
         env:
           ANSIBLE_HOST_KEY_CHECKING: "False"
