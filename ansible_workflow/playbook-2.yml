@@ -1,0 +1,30 @@
+---
+- name: Configure Nginx and HTTPD
+  hosts: all
+  become: yes
+  tasks:
+    - name: Install Nginx
+      apt:
+        name: nginx
+        state: present
+      when: host == "nginx"
+
+    - name: Install HTTPD
+      yum:
+        name: httpd
+        state: present
+      when: host == "httpd"
+
+    - name: Ensure Nginx is running
+      service:
+        name: nginx
+        state: started
+        enabled: yes
+      when: host == "nginx"
+
+    - name: Ensure HTTPD is running
+      service:
+        name: httpd
+        state: started
+        enabled: yes
+      when: host == "httpd"
