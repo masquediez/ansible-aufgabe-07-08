@@ -1,0 +1,38 @@
+name: Solo Ansible Workflow
+
+on:
+  push:
+    branches:
+      - main
+
+jobs:
+  # Job para desplegar la VPC
+  ansible-deploy:
+    runs-on: ubuntu-latest
+    needs: terraform-ec2
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Add SSH Key
+        run: |
+          echo "${{ secrets.AWS_SSH_KEY }}" > private_key.pem
+          chmod 600 private_key.pem
+
+      - name: Install Ansible
+        run: sudo apt-get update && sudo apt-get install -y ansible
+
+      - name: Run Ansible Playbook for Nginx
+        run: |
+          ansible-playbook ansible_workflow/playbook.yml -i "${{ steps.extract_ips.outputs.ip_nginx }}," -u ${{ secrets.SSH_USER }} --private-key private_key.pem --extra-vars "host=nginx"
+        env:
+          ANSIBLE_HOST_KEY_CHECKING: "False"
+
+      - name: Run Ansible Playbook for Httpd
+        run: |
+          ansible-playbook ansible_workflow/playbook.yml -i "${{ steps.extract_ips.outputs.ip_httpd }}," -u ${{ secrets.SSH_USER }} --private-key private_key.pem --extra-vars "host=httpd"
+        env:
+          ANSIBLE_HOST_KEY_CHECKING: "False"
+
+      - name: Clean up
+        run: rm -f private_key.pem
