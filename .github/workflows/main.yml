@@ -1,0 +1,82 @@
+name: Terraform and Ansible Workflow
+
+on:
+  push:
+    branches:
+      - main
+
+jobs:
+  terraform:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v2
+
+      - name: Set up Terraform
+        uses: hashicorp/setup-terraform@v1
+        with:
+          terraform_wrapper: false
+
+      - name: Initialize Terraform for VPC
+        run: terraform init
+        working-directory: ./terraform_setup/vpc
+
+      - name: Apply Terraform for VPC
+        run: terraform apply -auto-approve
+        working-directory: ./terraform_setup/vpc
+        env:
+          AWS_ACCESS_KEY_ID: ${{ secrets.AWS_ACCESS_KEY_ID }}
+          AWS_SECRET_ACCESS_KEY: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
+
+      - name: Initialize Terraform for EC2
+        run: terraform init
+        working-directory: ./terraform_setup/ec2
+
+      - name: Apply Terraform for EC2
+        run: terraform apply -auto-approve
+        working-directory: ./terraform_setup/ec2
+        env:
+          AWS_ACCESS_KEY_ID: ${{ secrets.AWS_ACCESS_KEY_ID }}
+          AWS_SECRET_ACCESS_KEY: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
+
+      - name: Extract IP addresses
+        id: extract_ips
+        run: |
+          echo "::set-output name=ip_nginx::$(terraform output -raw nginx_instance_ip)"
+          echo "::set-output name=ip_httpd::$(terraform output -raw httpd_instance_ip)"
+        working-directory: ./terraform_setup/ec2
+
+  ansible:
+    needs: terraform
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v2
+
+      - name: Add SSH Key
+        run: |
+          echo "${{ secrets.AWS_SSH_KEY }}" > private_key.pem
+          chmod 600 private_key.pem
+
+      - name: Run Ansible Playbook for Nginx
+        uses: ansible/ansible-playbook-action@v2
+        with:
+          playbook: ansible_workflow/playbook.yml
+          inventory: |
+            [nginx]
+            ${{ steps.extract_ips.outputs.ip_nginx }} ansible_user=${{ secrets.SSH_USER }} ansible_ssh_private_key_file=private_key.pem
+        env:
+          ANSIBLE_HOST_KEY_CHECKING: "False"
+
+      - name: Run Ansible Playbook for Httpd
+        uses: ansible/ansible-playbook-action@v2
+        with:
+          playbook: ansible_workflow/playbook.yml
+          inventory: |
+            [httpd]
+            ${{ steps.extract_ips.outputs.ip_httpd }} ansible_user=${{ secrets.SSH_USER }} ansible_ssh_private_key_file=private_key.pem
+        env:
+          ANSIBLE_HOST_KEY_CHECKING: "False"
+
+      - name: Clean up
+        run: rm -f private_key.pem
